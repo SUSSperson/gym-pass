@@ -18,15 +18,16 @@
             height: 100vh; margin: 0; background: var(--bg); color: white; overflow: hidden; 
         }
         
+        /* QR Container Styling */
         #qr-wrapper {
             background: white; padding: 15px; border-radius: 16px;
             box-shadow: 0 0 30px rgba(3, 169, 244, 0.3);
-            transition: transform 0.2s ease;
         }
 
         .timer { margin-top: 30px; font-size: 1.2rem; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 2px; }
         .details { margin-top: 8px; font-size: 0.7rem; opacity: 0.4; letter-spacing: 1px; }
 
+        /* Hidden Settings Panel */
         .settings-trigger { position: absolute; bottom: 30px; font-size: 0.75rem; opacity: 0.2; padding: 15px; letter-spacing: 1px; }
         #settings-panel { 
             position: fixed; bottom: 0; width: 100%; background: var(--card); 
@@ -45,6 +46,7 @@
         .save-btn { 
             width: 100%; background: var(--accent); border: none; padding: 16px; 
             border-radius: 12px; color: white; font-weight: 700; font-size: 1rem; 
+            cursor: pointer;
         }
     </style>
 </head>
@@ -61,17 +63,17 @@
 
     <div id="settings-panel">
         <label>Internal Math ID</label>
-        <input type="number" id="int-id" placeholder="e.g. 50781">
+        <input type="number" id="int-id" placeholder="Enter Internal ID">
         
         <label>Public Member ID</label>
-        <input type="number" id="pub-id" placeholder="e.g. 51054921">
+        <input type="number" id="pub-id" placeholder="Enter Member ID">
         
         <button class="save-btn" onclick="saveSettings()">SAVE & REGENERATE</button>
         <div style="text-align: center; margin-top: 20px; opacity: 0.5; font-size: 0.8rem;" onclick="toggleSettings()">DISMISS</div>
     </div>
 
     <script>
-        // Load persistent data or use placeholders
+        // Load data from local storage or set defaults
         let INTERNAL_ID = localStorage.getItem('internal_id') || "50781";
         let PUBLIC_ID = localStorage.getItem('public_id') || "51054921";
 
@@ -101,27 +103,30 @@
             toggleSettings();
         }
 
+        /**
+         * Core Logic: Version 3
+         * Fixes: 16-byte dummy block alignment and Static Null IV
+         */
         function generateToken() {
-            // 1. Derive Math Key using the formula: ((65 + ID) * 754 * ID) + 9476221
+            // 1. Key Derivation Formula: ((65 + ID) * 754 * ID) + 9476221
             const id = parseInt(INTERNAL_ID);
             const mathKey = ((65 + id) * 754 * id) + 9476221;
             const hash = CryptoJS.SHA256(mathKey.toString()).toString();
             const aesKey = CryptoJS.enc.Utf8.parse(hash.substring(0, 32));
 
-            // 2. Build Payload with specific key order
+            // 2. Format JSON payload (minified, no spaces)
             const timestamp = Math.floor(Date.now() / 1000);
             const payload = JSON.stringify({ 
                 "vg_member_id": parseInt(PUBLIC_ID),
                 "timestamp": timestamp 
             }).replace(/\s/g, '');
 
-            // 3. 8-byte dummy block to match official token length
-            const charset = "abcdefghijklmnopqrstuvwxyz0123456789";
-            let dummy = "";
-            for (let i = 0; i < 8; i++) dummy += charset.charAt(Math.floor(Math.random() * charset.length));
+            // 3. CRITICAL: Exact 16-character dummy block
+            // The scanner strips the first 16 bytes. This fills that block perfectly.
+            const dummy = "1234567890abcdef"; 
             const plaintext = dummy + payload;
 
-            // 4. Static NULL IV Fix (16-byte zero array)
+            // 4. Static NULL IV (16 zeros) - Standard for these legacy scanners
             const iv = CryptoJS.enc.Utf8.parse('\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0'); 
 
             // 5. AES-256-CBC Encryption
@@ -139,6 +144,7 @@
             qrcode.makeCode(generateToken());
         }
 
+        // 10-second refresh timer
         let timeLeft = 10;
         setInterval(() => {
             timeLeft--;
@@ -149,7 +155,7 @@
             countdownEl.innerText = `Update in ${timeLeft}s`;
         }, 1000);
 
-        // Initial Boot
+        // Initialize display
         idLabel.innerText = `MEMBER ID: ${PUBLIC_ID}`;
         updateQR();
     </script>
