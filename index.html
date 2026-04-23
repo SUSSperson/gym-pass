@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gym Pass Pro</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        :root { --accent: #03A9F4; }
+        body { font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #000; color: white; overflow: hidden; }
+        
+        /* QR Container */
+        #qrcode { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 0 20px rgba(3, 169, 244, 0.2); }
+        #qrcode img { display: block; }
+
+        /* HUD Info */
+        .timer { margin-top: 25px; font-size: 1.1rem; font-weight: 500; color: var(--accent); }
+        .id-display { margin-top: 5px; font-size: 0.75rem; opacity: 0.4; letter-spacing: 1px; }
+
+        /* Settings Panel */
+        .settings-btn { position: absolute; bottom: 20px; font-size: 0.8rem; opacity: 0.3; padding: 10px; }
+        #settings-panel { position: fixed; bottom: 0; width: 100%; background: #1c1c1e; border-top: 1px solid #333; padding: 20px; box-sizing: border-box; transform: translateY(100%); transition: 0.3s; z-index: 10; border-radius: 20px 20px 0 0; }
+        #settings-panel.open { transform: translateY(0); }
+        
+        input { width: 100%; background: #2c2c2e; border: none; padding: 12px; margin: 8px 0; border-radius: 8px; color: white; font-size: 1rem; outline: none; }
+        label { font-size: 0.8rem; color: var(--accent); margin-left: 5px; }
+        button.save { width: 100%; background: var(--accent); border: none; padding: 15px; border-radius: 10px; color: white; font-weight: bold; margin-top: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="qrcode"></div>
+    <div class="timer" id="countdown">REFRESHING IN 10s</div>
+    <div class="id-display" id="id-label">MEMBER: 51054921</div>
+
+    <div class="settings-btn" onclick="toggleSettings()">⚙️ SETTINGS</div>
+
+    <div id="settings-panel">
+        <label>INTERNAL ID (For Encryption)</label>
+        <input type="number" id="int-id" placeholder="e.g. 50781">
+        
+        <label>PUBLIC MEMBER ID (For Payload)</label>
+        <input type="number" id="pub-id" placeholder="e.g. 51054921">
+        
+        <button class="save" onclick="saveSettings()">SAVE & REGENERATE</button>
+        <div style="text-align: center; margin-top: 15px; opacity: 0.5; font-size: 0.7rem;" onclick="toggleSettings()">CLOSE</div>
+    </div>
+
+    <script>
+        // Load IDs from storage or use your defaults
+        let INTERNAL_ID = localStorage.getItem('internal_id') || 50781;
+        let PUBLIC_ID = localStorage.getItem('public_id') || 51054921;
+
+        const qrContainer = document.getElementById("qrcode");
+        const countdownEl = document.getElementById("countdown");
+        const idLabel = document.getElementById("id-label");
+        const panel = document.getElementById("settings-panel");
+        
+        let qrcode = new QRCode(qrContainer, { width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+
+        function toggleSettings() {
+            panel.classList.toggle('open');
+            document.getElementById('int-id').value = INTERNAL_ID;
+            document.getElementById('pub-id').value = PUBLIC_ID;
+        }
+
+        function saveSettings() {
+            INTERNAL_ID = document.getElementById('int-id').value;
+            PUBLIC_ID = document.getElementById('pub-id').value;
+            
+            localStorage.setItem('internal_id', INTERNAL_ID);
+            localStorage.setItem('public_id', PUBLIC_ID);
+            
+            idLabel.innerText = `MEMBER: ${PUBLIC_ID}`;
+            updateQR();
+            toggleSettings();
+        }
+
+        function generateToken() {
+            // Replicating the math found in JADX
+            const mathKey = ((65 + parseInt(INTERNAL_ID)) * 754 * parseInt(INTERNAL_ID)) + 9476221;
+            const hash = CryptoJS.SHA256(mathKey.toString()).toString();
+            const aesKey = CryptoJS.enc.Utf8.parse(hash.substring(0, 32));
+
+            const timestamp = Math.floor(Date.now() / 1000);
+            const payload = JSON.stringify({ "timestamp": timestamp, "vg_member_id": parseInt(PUBLIC_ID) });
+
+            // 16-char dummy block + blank IV (Server ignores IV in this specific implementation)
+            const dummy = CryptoJS.lib.WordArray.random(8).toString(); 
+            const plaintext = dummy + payload;
+            const iv = CryptoJS.lib.WordArray.random(16); 
+
+            const encrypted = CryptoJS.AES.encrypt(plaintext, aesKey, {
+                iv: iv,
+                mode: CryptoJS.mode.CBC,
+                padding: CryptoJS.pad.Pkcs7
+            });
+
+            return "vg_checkin_qr=" + encrypted.toString();
+        }
+
+        function updateQR() {
+            const token = generateToken();
+            qrcode.clear();
+            qrcode.makeCode(token);
+        }
+
+        let timeLeft = 10;
+        setInterval(() => {
+            timeLeft--;
+            if (timeLeft <= 0) {
+                updateQR();
+                timeLeft = 10;
+            }
+            countdownEl.innerText = `REFRESHING IN ${timeLeft}s`;
+        }, 1000);
+
+        // Init
+        idLabel.innerText = `MEMBER: ${PUBLIC_ID}`;
+        updateQR();
+    </script>
+</body>
+</html>
